@@ -1,0 +1,392 @@
+# **FINAL PROJECT REPORT**
+
+## DS 805 - STATISTICAL LEARNING
+
+*Team Members: Adam Messina, Sathish Komire, Vikas Sabbani* 
+
+**Table of Contents**
+
+-   Introduction
+-   Data set Overview
+-   What are we trying to model
+-   Data
+-   Exploratory Data Analysis
+-   Summary Statistics
+    -   Box plots
+
+    -   Correlation Matrix
+
+    -   Plots
+-   LDA
+    -   Plot
+-   KNN
+    -   Plot
+-   Tree Based Model
+    -   Plot
+-   SVM
+    -   Plot
+-   Summary Statistics
+-   Conclusion
+
+## Introduction
+
+In this report we tried to use different classification models to classify an abalone’s Age and sex. For this project we chose the dataset from Kaggle – [LINK](https://www.kaggle.com/code/rodolfomendes/abalone-exploratory-data-analysis).
+
+## Dataset Overview
+
+The Abalone dataset which we took contains may different physical features of Abalones such as age, height, sex, rings, weight etc.  Our dependent variable is a categorial variable representing the sex of the abalones, which is going to be classified by the available physical features of the abalone.
+
+## What are we trying to model?
+
+## Data
+
+The dataset contains 9 columns and 4177 records. The data present in the dataset covers physical features of the abalone. Below details are the [column description:]{.underline}
+
+y: Represents the sex of the abalone.
+
+Length: Length the abalones.
+
+Diameter: Diameter of the abalones.
+
+Height: Height of the abalones.
+
+Whole_weight: Total weight of the abalones.
+
+Shucked_weight: Weight of the edible part of the abalones (excluding shell).
+
+Viscera_weight: Weight of the abalones gut or internal organs.
+
+Shell_weight: Weight of the abalones' shells.
+
+Rings: Number of rings on the shells of the abalones.
+
+## Exploratory Data Analysis
+
+```{r echo=FALSE}
+#install.packages("ranger")
+#install.packages("corrplot")
+```
+
+```{r include=FALSE}
+library(corrplot)
+library(dplyr)
+library(tidyverse)
+library(MASS)
+library(class)
+library(caret)
+library(randomForest)
+library(kableExtra)
+```
+
+Loading the data set into a data frame **df**.
+
+```{r}
+df = data.frame(read.table("C:\\Users\\USNHIT\\OneDrive - USNH\\Desktop\\Term3\\SL\\Project\\abalone.data", sep = ","))
+
+colnames(df) = c("y", "Length", "Diameter", "Height", "Whole_weight", "Shucked_weight", "Viscera_weight", "Shell_weight", "Rings")
+
+```
+
+#### Variable Details:
+
+![](stats.png){fig-align="center" width="402"}
+
+#### Checking for missing values:
+
+```{r}
+colSums(is.na(df))
+```
+
+We have no missing values in the data set.
+
+### Summary Statistics
+
+```{r}
+summary(df)
+```
+
+
+```{r}
+str(df)
+```
+
+### Box Plots
+
+```{r echo=FALSE}
+df %>% 
+  pivot_longer(col = 2:9, names_to = "names") %>% 
+  ggplot(aes(y, value)) +
+  geom_boxplot() +
+  facet_wrap(~names, scales = "free")+
+  coord_flip()
+```
+
+## Correlation Matrix between variables
+
+```{r echo=FALSE}
+df_corr <- df[, -which(names(df) == 'y')]
+
+cor_matrix <- cor(df_corr)
+corrplot(cor_matrix, method = "color")
+```
+
+### Bar Plot for the dependent variable
+
+```{r echo=FALSE}
+df %>% 
+  group_by(y) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(y, n, fill = y))+
+  geom_bar(stat = "identity")
+```
+
+No Categorical variables other than y.
+
+### Splitting the data into train and test:
+
+```{r}
+set.seed(13)
+df$y = as.factor(df$y)
+index = createDataPartition(df$y, p=.80, list = FALSE)
+train=df[index,]
+test=df[-index,]
+
+c(nrow(df), nrow(train), nrow(test))
+```
+
+## Linear Discriminant Analysis:
+
+```{r}
+model1 = lda(y~., data=train)
+model1
+```
+
+### Confusion Matrix and Testing Error Rate for LDA:
+
+```{r}
+lda.pred = predict(model1, newdata=test)
+confusionMatrix(as.factor(test$y), lda.pred$class)
+```
+
+
+
+Choosing LDA over Logistic Regression was strategic for our abalone sex classification due to three primary reasons. First, LDA's assumption of normally distributed predictors aligns well with our data, potentially enhancing model accuracy. Second, LDA excels in dimensionality reduction, efficiently identifying key feature combinations for class distinction, which is crucial in our multi-feature scenario. Lastly, LDA is more computationally efficient in multi-class settings like ours, providing a straightforward modeling approach
+
+Our LDA model demonstrated a noteworthy ability to identify +ve cases accurately, evidenced by high sensitivity, especially for the class 'I'. However, the model's low specificity points to a higher rate of false +ve's, particularly misclassifying other classes as 'F' or 'M'. This result underscores the model's strength in detecting specific classes while highlighting the need for further refinement to reduce misclassification and achieve a balanced accuracy across all classes
+
+
+## KNN:
+
+```{r}
+knn.train=train[,2:9]
+knn.test=test[,2:9]
+knn.trainLabels=as.factor(train[,"y"])
+knn.testLabels=as.factor(test[,"y"])
+
+model2 = knn(train = knn.train, test = knn.test, cl = knn.trainLabels, k=3)
+```
+
+```{r}
+set.seed(1234)
+k.grid=1:100
+error=rep(0, length(k.grid))
+
+for (i in seq_along(k.grid)) {
+  pred = knn(train = scale(knn.train), 
+             test  = scale(knn.test), 
+             cl    = knn.trainLabels, 
+             k     = k.grid[i])
+  error[i] = mean(knn.testLabels !=pred)
+}
+
+min(error)
+```
+
+```{r}
+plot(error, type = "b", col = "dodgerblue", cex = 1, pch = 20, 
+     xlab = "k, number of neighbors", ylab = "classification error")
+# add line for min error seenabline(h = min(error), col = "darkorange", lty = 3)
+```
+
+### Confusion Matrix and Testing Error Rate for KNN Classification:
+
+```{r}
+confusionMatrix(model2, knn.testLabels)
+```
+
+
+
+We chose the K-Nearest Neighbors (KNN) model to classify abalone sex because it's effective and easy to use for problems with multiple categories. To get the best results, we carefully picked the k value that led to the least mistakes. This approach gave us an accuracy of 51.92%, however we want to explore other models to improve the accuracy.
+
+
+## Tree Based Models - Random Forest:
+
+```{r}
+set.seed(123)
+
+mtry.rf <- tuneRF(x = subset(train, select = -y), y = as.factor(train$y),ntreeTry = 500)
+```
+
+```{r}
+set.seed(123)
+
+model.rf <- randomForest(factor(y) ~ .,
+                             data = train,
+                             mtry = 2,
+                             ntree = 500)
+
+print(model.rf)
+model.rf$mtry
+head(model.rf$importance)
+```
+
+For the Random Forest model we used the **`tuneRF`** function to find the optimal number of variables to consider at each split (**`mtry`**), setting the number of trees (**`ntree`**) to 500. The model performed best with an **`mtry`** of 2, yielding the lowest Out-of-Bag (OOB) error rate of 44.21%.
+
+In confusion matrix many instances of the actual 'F' class were misclassified as 'M', which suggests that the model may struggle to differentiate between these two classes.
+
+The variable importance measure showed that **`Viscera_weight`** and **`Shucked_weight`** were the most influential features for the model, implying a strong relationship between these features and the abalone's sex.
+
+### Confusion Matrix and Testing Error Rate for Random Forest:
+
+```{r}
+#OOB error matrix
+err= model.rf$err.rate
+head(err)
+```
+
+The OOB error matrix suggests that the model's predictions are correct about half the time when applied to the data it was trained on.
+
+```{r}
+plot(model.rf)
+legend(x = "right", legend = colnames(err),fill = 1:ncol(err))
+```
+
+```{r}
+pred.rf= predict(model.rf, newdata = test, type = "class")
+
+confusionMatrix <- confusionMatrix(as.factor(pred.rf), reference = test$y)
+confusionMatrix
+```
+
+The model has an accuracy of approximately 54.8%, which is better than random chance, as indicated by the statistically significant p-value.
+
+Sensitivity and specificity vary across the classes, with the model being most sensitive at predicting class 'I' (76.12%) and most specific at classifying class 'F' (75.39%).
+
+
+
+We chose the Random Forest model for our tree-based approach because it's great at dealing with complex data and reducing overfitting, a common problem with single decision trees. By creating a "forest" of trees and using their average predictions, we aimed to improve the reliability and accuracy of our abalone sex classification. This method provided us with decent results, showing our model's capability to differentiate between the abalone sexes with an accuracy of around 54.8%
+
+## SVM
+
+```{r}
+    library(e1071)
+    #test and train split:
+    df[, "train"] = ifelse(runif(nrow(df))<.8, 1, 0)
+    train_svm <- df[df$train == 1, ]
+    test_svm <- df[df$train == 0, ]
+    #find index of "train" column
+    index <- grep("train", names(df))
+    #remove "train" column from train and test dataset
+    train_svm <- train_svm[, -index]
+    test_svm <- test_svm[, -index]
+
+    train_svm$y <- as.factor(train_svm$y)
+    #build svm model, setting required parameters
+    svm_model<- svm(y ~ ., data = train_svm, type = "C-classification", kernel = "linear", scale = FALSE, cost=0.1)
+    svm_model
+```
+
+```{r}
+svm_plot=ggplot(data = train_svm, aes(x = Length, y = Diameter, color = y)) + 
+        geom_point() + 
+        scale_color_manual(values = c("red", "blue","green")) + 
+        geom_point(data = train_svm[svm_model$index, ], aes(x = Length, y = Diameter), color = "purple", size = 4, alpha = 0.5)
+
+    svm_plot
+    #names(train)
+```
+
+
+
+### Confusion Matrix and Testing Error Rate for SVM:
+
+```{r}
+pred_test <- predict(svm_model, test_svm)
+mean(pred_test == test_svm$y)
+cm <- confusionMatrix(data = pred_test, reference = test_svm$y)
+cm
+```
+This basic SVM model selects 2,840 support vectors from a total of 4,177 rows, a significantly large number that suggests the model's complexity. Visual observations from the svm_plot indicate the model's difficulty in distinctly classifying the various abalone classes, further evidenced by its lower accuracy when compared to the Random Forest model. Notably, the SVM model shows a complete inability to predict Adult Female Abalones, with a sensitivity of zero. Given these limitations, there's a clear need to refine and tune the SVM model further to explore potential improvements in its predictive performance.
+
+```{r}
+set.seed(123)
+tune.svm=tune(svm,y ~ ., data = train_svm, type = "C-classification", 
+              kernel = "radial", 
+              ranges =list(cost=c(0.001 , 0.01, 0.1, 1,5,10,100)))
+summary(tune.svm)
+```
+```{r}
+bestmod=tune.svm$best.model
+bestmod
+```
+
+```{r}
+    
+    #compute test accuracy
+    pred_test1=predict(svm_model, test_svm)
+    pred_test2=predict(bestmod, test_svm)
+    mean(pred_test1 == test_svm$y)
+```
+
+```{r}
+mean(pred_test2 == test_svm$y)
+```
+```{r}
+confusionMatrix(data = pred_test2, reference = test_svm$y)
+```
+
+```{r}
+svm_plot=ggplot(data = train_svm, aes(x = Length, y = Diameter, color = y)) + 
+        geom_point() + 
+        scale_color_manual(values = c("red", "blue","green")) + 
+        geom_point(data = train_svm[bestmod$index, ], aes(x = Length, y = Diameter), color = "purple", size = 4, alpha = 0.5)
+
+    svm_plot
+```
+After adjusting the SVM model by opting for a radial kernel and identifying an optimal cost value from a set of possibilities (0.001, 0.01, 0.1, 1, 5, 10, 100), we managed to enhance its accuracy to 56.88%. This tuned version now successfully predicts Adult Female Abalones, although its performance in this regard, at 23.9%, still falls short of the Random Forest model's 45.98% sensitivity. The svm_plot visualization also reveals a clearer distinction between classes through the hyperplane, a significant improvement over the pre-tuned SVM model. Despite these advancements, we pursued further refinement by conducting 100 additional iterations on the SVM model, aiming to explore any further potential for improvement.
+
+```{r}
+   accuracy=c()
+    for (i in 1:100){
+        #assign 80% of the data to the training set
+      df$y <- as.factor(df$y)
+        df[, "train"] = ifelse(runif(nrow(df))<.8, 1, 0)
+        trainColNum <- grep("train", names(df))
+        trainset <- df[df$train == 1, -trainColNum]
+        testset <- df[df$train == 0, -trainColNum]
+        
+        
+        #build model using training data
+        svm_model <- svm(y~ ., data = trainset, 
+                         type = "C-classification", kernel = "radial")
+        #calculate accuracy on test data
+        pred_test <- predict(svm_model, testset)
+        accuracy[i]<- mean(pred_test==testset$y)
+    }
+
+    mean(accuracy) 
+```
+
+This Accuracy after 100 iterations is not better than the tuned SVM model.
+
+
+
+The SVM model excels in managing distinct margins of separation and offers flexibility for handling both linear and nonlinear datasets. Our goal in adjusting model parameters, including the cost and kernel type, was to reduce errors and enhance the model's precision in classifying abalone sex. Following these adjustments, the refined SVM model achieved an accuracy of approximately 56.88%.
+
+
+In our analysis comparing models for the classification of abalone sex—including Linear Discriminant Analysis (LDA), K-Nearest Neighbors (KNN), Random Forest, and Support Vector Machines (SVM)—we found that SVM and Random Forest outperformed the others with accuracy rates of 56.88% and 54.8%, respectively. However, when considering the metric of sensitivity, especially in correctly identifying Adult Female Abalones, SVM falls short. Random Forest demonstrates a significantly higher sensitivity, at 46%, for this category, underscoring the importance of looking beyond mere accuracy when selecting the best model for our needs. Through this lens, Random Forest emerges as the superior choice, balancing robust accuracy with enhanced sensitivity and specificity across categories.
+
+Nonetheless, the results suggest ample room for improvement across all models evaluated. To enhance performance, we recommend exploring strategies such as improved feature selection, fine-tuning model-specific parameters (e.g., adjusting the number of estimators in Random Forest or optimizing SVM's kernel parameters), and incorporating a broader set of biological data. Moreover, adopting advanced methods like ensemble techniques, which capitalize on the strengths of multiple predictive models, could offer a promising path forward. Such approaches may significantly improve our capability to accurately classify abalone sex, leading to more reliable and insightful outcomes.
+    
+
+we've acquired a deep understanding of statistical learning, enhanced abilities in model interpretation, and improved R programming skills. We've grasped the critical importance of evaluating machine learning models beyond mere accuracy, appreciating the nuances of sensitivity and specificity, especially in the context of different models like LDA, KNN, Random Forest, and SVM. This insight, coupled with practical experience in applying, tuning, and comparing these models using R, has not only bolstered our analytical capabilities but also our understanding of model behavior and performance metrics. Moreover, this project has honed our data manipulation and visualization skills, essential for effective data analysis and storytelling.
